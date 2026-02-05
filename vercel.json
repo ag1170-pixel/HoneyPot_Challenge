@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/honeypot.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "api/honeypot.py"
+      "dest": "api/index.py"
     }
   ]
 }
