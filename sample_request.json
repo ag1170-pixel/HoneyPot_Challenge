@@ -1,0 +1,14 @@
+{
+  "sessionId": "test-123",
+  "message": {
+    "sender": "scammer", 
+    "text": "Congratulations! You won $1,000,000! Send $500 to winner@bank",
+    "timestamp": "2025-01-01T10:00:00Z"
+  },
+  "conversationHistory": [],
+  "metadata": {
+    "channel": "whatsapp",
+    "language": "en", 
+    "locale": "IN"
+  }
+}
