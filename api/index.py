@@ -28,9 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# API key from config
+API_KEY = "test-key-12345"
+
 # Simple API key validation
 def validate_api_key(api_key: Optional[str] = Header(None, alias="x-api-key")) -> str:
-    return api_key or "test-key"
+    return api_key or API_KEY
 
 # Simple honeypot handler
 class SimpleHoneypotHandler:
@@ -69,26 +72,6 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-@app.get("/api/health")
-async def api_health_check():
-    return {"status": "healthy"}
-
-@app.get("/api/honeypot/message")
-async def api_honeypot_get():
-    return {"message": "Honeypot API - POST to this endpoint"}
-
-@app.post("/api/honeypot/message")
-async def api_honeypot_message(
-    request: HoneypotRequest,
-    api_key: str = validate_api_key()
-):
-    try:
-        result = honeypot_handler.handle_message(request)
-        return result
-    except Exception as e:
-        logger.error(f"Error handling message: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
 @app.post("/honeypot/message")
 async def handle_honeypot_message(
     request: HoneypotRequest,
@@ -101,9 +84,13 @@ async def handle_honeypot_message(
         logger.error(f"Error handling message: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Vercel handler
+# Vercel serverless handler - Pure Python implementation
 def handler(event, context):
+    """
+    Vercel serverless function handler
+    """
     try:
+        # Parse Vercel event
         http_method = event.get('httpMethod', 'GET')
         path = event.get('path', '/')
         headers = event.get('headers', {})
@@ -116,17 +103,10 @@ def handler(event, context):
                 'body': ''
             }
         
-        # Route to appropriate handler
+        # Route handling
         if http_method == 'GET':
-            if path == '/' or path == '/health' or path == '/api/health':
+            if path == '/' or path == '/health':
                 response_data = {"status": "healthy"}
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps(response_data)
-                }
-            elif path == '/api/honeypot/message':
-                response_data = {"message": "Honeypot API - POST to this endpoint"}
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json'},
@@ -140,22 +120,26 @@ def handler(event, context):
                 }
         
         elif http_method == 'POST':
-            if path == '/api/honeypot/message' or path == '/honeypot/message':
+            if path == '/honeypot/message':
                 try:
+                    # Parse request body
                     body = event.get('body', '{}')
                     if body:
                         request_data = json.loads(body)
                     else:
                         request_data = {}
                     
-                    api_key = headers.get('x-api-key', 'test-key')
+                    # Validate API key
+                    api_key = headers.get('x-api-key', API_KEY)
                     
+                    # Create honeypot request
                     honeypot_request = HoneypotRequest(
                         message=request_data.get('message', ''),
                         user_id=request_data.get('user_id'),
                         session_id=request_data.get('session_id')
                     )
                     
+                    # Process message
                     result = honeypot_handler.handle_message(honeypot_request)
                     
                     return {
