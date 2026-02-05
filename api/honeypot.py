@@ -104,9 +104,28 @@ async def handle_honeypot_message(
         logger.error(f"Error handling message: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Vercel handler
-def handler(request):
-    return app(request)
+# Vercel serverless function handler
+def handler(event, context):
+    """
+    Vercel serverless function handler
+    """
+    try:
+        # Import ASGI handler for Vercel
+        from mangum import Mangum
+        
+        # Create Mangum handler for FastAPI app
+        asgi_handler = Mangum(app)
+        
+        # Return the ASGI handler
+        return asgi_handler(event, context)
+        
+    except Exception as e:
+        logger.error(f"Vercel handler error: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': f'Function invocation failed: {str(e)}'})
+        }
 
 # Export for Vercel
 app.handler = handler
