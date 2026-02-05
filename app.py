@@ -20,6 +20,10 @@ app.add_middleware(
 
 honeypot_handler = HoneypotHandler()
 
+@app.get("/")
+async def root():
+    return {"message": "Honeypot API is running", "version": "1.0.0"}
+
 @app.post("/honeypot/message")
 async def handle_honeypot_message(
     request: HoneypotRequest,
@@ -36,6 +40,22 @@ async def handle_honeypot_message(
 async def health_check():
     return {"status": "healthy"}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Vercel serverless handler
+def handler(event, context):
+    """
+    Vercel serverless function handler using ASGI adapter
+    """
+    try:
+        from mangum import Mangum
+        asgi_handler = Mangum(app)
+        return asgi_handler(event, context)
+    except Exception as e:
+        logger.error(f"Handler error: {e}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': '{"error": "Internal server error"}'
+        }
+
+# Export for Vercel
+app.handler = handler
