@@ -28,9 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# API key from config
+API_KEY = "test-key-12345"
+
 # Simple API key validation
 def validate_api_key(api_key: Optional[str] = Header(None, alias="x-api-key")) -> str:
-    return api_key or "test-key"
+    return api_key or API_KEY
 
 # Simple honeypot handler
 class SimpleHoneypotHandler:
@@ -81,21 +84,91 @@ async def handle_honeypot_message(
         logger.error(f"Error handling message: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Vercel serverless handler
+# Vercel serverless handler - Pure Python implementation
 def handler(event, context):
     """
-    Vercel serverless function handler using ASGI adapter
+    Vercel serverless function handler
     """
     try:
-        from mangum import Mangum
-        asgi_handler = Mangum(app)
-        return asgi_handler(event, context)
+        # Parse Vercel event
+        http_method = event.get('httpMethod', 'GET')
+        path = event.get('path', '/')
+        headers = event.get('headers', {})
+        
+        # Handle favicon requests
+        if path == '/favicon.ico' or path == '/favicon.png':
+            return {
+                'statusCode': 204,
+                'headers': {},
+                'body': ''
+            }
+        
+        # Route handling
+        if http_method == 'GET':
+            if path == '/' or path == '/health':
+                response_data = {"status": "healthy"}
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps(response_data)
+                }
+            else:
+                return {
+                    'statusCode': 404,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({"error": "Not found"})
+                }
+        
+        elif http_method == 'POST':
+            if path == '/honeypot/message':
+                try:
+                    # Parse request body
+                    body = event.get('body', '{}')
+                    if body:
+                        request_data = json.loads(body)
+                    else:
+                        request_data = {}
+                    
+                    # Validate API key
+                    api_key = headers.get('x-api-key', API_KEY)
+                    
+                    # Create honeypot request
+                    honeypot_request = HoneypotRequest(
+                        message=request_data.get('message', ''),
+                        user_id=request_data.get('user_id'),
+                        session_id=request_data.get('session_id')
+                    )
+                    
+                    # Process message
+                    result = honeypot_handler.handle_message(honeypot_request)
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps(result)
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"POST error: {e}")
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json'},
+                        'body': json.dumps({"error": "Internal server error"})
+                    }
+        
+        else:
+            return {
+                'statusCode': 405,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({"error": "Method not allowed"})
+            }
+        
     except Exception as e:
         logger.error(f"Handler error: {e}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
-            'body': '{"error": "Internal server error"}'
+            'body': json.dumps({'error': 'Function invocation failed'})
         }
 
 # Export for Vercel
