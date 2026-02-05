@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 from datetime import datetime
 
-app = FastAPI(title="Honeypot API", version="1.0.0")
+app = FastAPI()
 
 class Message(BaseModel):
     sender: str
@@ -21,11 +21,9 @@ class HoneypotRequest(BaseModel):
     conversationHistory: List[Dict[str, Any]]
     metadata: Metadata
 
-API_KEY = "test-key-12345"
-
 @app.get("/")
 async def root():
-    return {"message": "Honeypot API is running", "version": "1.0.0"}
+    return {"status": "running", "message": "Honeypot API is working"}
 
 @app.get("/health")
 async def health():
@@ -33,8 +31,7 @@ async def health():
 
 @app.post("/honeypot/message")
 async def handle_message(request: HoneypotRequest):
-    # Simple scam detection
-    is_scam = "bank" in request.message.text.lower() or "account" in request.message.text.lower()
+    is_scam = any(keyword in request.message.text.lower() for keyword in ["bank", "account", "urgent", "blocked", "verify"])
     
     return {
         "sessionId": request.sessionId,
